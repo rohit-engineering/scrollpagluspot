@@ -1,15 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import Home from '../pages/Home.vue'
-import Shop from '../pages/Shop.vue'
-import Cart from '../pages/Cart.vue'
-import Checkout from '../pages/Checkout.vue'
-import Orders from '../pages/Orders.vue'
-import Profile from '../pages/Profile.vue'
-import Login from '../pages/Login.vue'
-import Signup from '../pages/Signup.vue'
-import explore from '../pages/explore.vue'
-import Notifications from '../pages/Notifications.vue'
-import ProductDetails from '../pages/ProductDetails.vue'
+
+// ✅ Lazy-loaded routes (only loads when user visits the page)
+const Home = () => import('../pages/Home.vue')
+const Shop = () => import('../pages/Shop.vue')
+const Cart = () => import('../pages/Cart.vue')
+const Checkout = () => import('../pages/Checkout.vue')
+const Orders = () => import('../pages/Orders.vue')
+const Profile = () => import('../pages/Profile.vue')
+const Login = () => import('../pages/Login.vue')
+const Signup = () => import('../pages/Signup.vue')
+const Explore = () => import('../pages/explore.vue')
+const Notifications = () => import('../pages/Notifications.vue')
+const ProductDetails = () => import('../pages/ProductDetails.vue')
 
 const routes = [
   { path: '/', component: Home },
@@ -17,8 +19,8 @@ const routes = [
   { path: '/profile', component: Profile },
   { path: '/login', component: Login },
   { path: '/signup', component: Signup },
-  { path: '/explore', component: explore },
-  { path: '/Notifications', component: Notifications },
+  { path: '/explore', component: Explore },
+  { path: '/notifications', component: Notifications },
   { path: '/product/:id', component: ProductDetails },
   { path: '/cart', component: Cart, meta: { requiresAuth: true } },
   { path: '/orders', component: Orders, meta: { requiresAuth: true } },

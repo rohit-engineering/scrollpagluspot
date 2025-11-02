@@ -5,7 +5,7 @@
       <h1 class="gradient-text">✨ Explore The Vibe</h1>
       <p class="subtitle">Aesthetic stickers & desi Gen-Z confessions, memes & fashion feels 🔥</p>
     </header>
-    <p class="disclaimer">⚠️ All content is for entertainment only. Generated from safe public APIs.</p>
+    <p class="disclaimer">⚠️ All content is for entertainment only for Scroll Paglus.</p>
 
     <!-- Tabs -->
     <div class="tab-bar" role="tablist" aria-label="Explore tabs">

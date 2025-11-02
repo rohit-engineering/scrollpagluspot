@@ -16,7 +16,11 @@ export function useAuth() {
   // Fetch user profile
   const fetchProfile = async (id) => {
     loadingProfile.value = true
-    const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single()
+    const { data, error } = await supabase
+  .from('profiles')
+  .select('*')
+  .eq('id', id)
+  .maybeSingle() // ✅ avoids 406 if no profile exists yet
     if (!error) profile.value = data
     loadingProfile.value = false
     return { data, error }

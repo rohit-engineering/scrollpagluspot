@@ -8,6 +8,8 @@ import './styles/main.scss'
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import Toast from 'vue-toastification'
 import 'vue-toastification/dist/index.css'
+import { VueQueryPlugin } from '@tanstack/vue-query'
+
 
 const app = createApp(App)
 app.use(router)
@@ -22,4 +24,5 @@ app.use(Toast, {
   hideProgressBar: true,
   toastClassName: 'genz-toast'
 })
+app.use(VueQueryPlugin)
 app.mount('#app')
