@@ -1,17 +1,19 @@
 // src/composables/useSupabase.js
 import { createClient } from '@supabase/supabase-js'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
+// ========== 1. Supabase Client Setup ==========
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const supabase = createClient(supabaseUrl, supabaseKey)
 
+// ========== 2. Auth Composable ==========
 export function useAuth() {
-  const user = ref(null)        // Auth user
-  const profile = ref(null)     // Profile data
+  const user = ref(null)
+  const profile = ref(null)
   const loadingProfile = ref(false)
 
-  // fetch profile asynchronously (non-blocking)
+  // Fetch user profile
   const fetchProfile = async (id) => {
     loadingProfile.value = true
     const { data, error } = await supabase.from('profiles').select('*').eq('id', id).single()
@@ -20,87 +22,60 @@ export function useAuth() {
     return { data, error }
   }
 
-  // fast login: redirect immediately, fetch profile in background
+  // Login
   const login = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
     user.value = data.user
-
-    // fetch profile concurrently in background
     if (data.user) fetchProfile(data.user.id)
     return data.user
   }
 
-  // fast signup: create user, insert profile asynchronously
- const signup = async (email, password, full_name, phone) => {
-  // ✅ Whitelisted real domains
-  const allowedDomains = [
-    'gmail.com',
-    'yahoo.com',
-    'outlook.com',
-    'hotmail.com',
-    'icloud.com',
-    'protonmail.com'
-  ]
-
-  // ✅ Extract domain from email
-  const domain = email.split('@')[1]?.toLowerCase()
-
-  // 🚫 Block if domain not in whitelist
-  if (!allowedDomains.includes(domain)) {
-    throw new Error('⚠️ Please use a valid email domain (e.g., Gmail, Yahoo, Outlook).')
-  }
-
-  // 🕵️‍♂️ Check if email is disposable using API (Disify)
-  try {
-    const res = await fetch(`https://www.disify.com/api/email/${email}`)
-    const data = await res.json()
-
-    if (data.disposable) {
-      throw new Error('🚫 Temporary or disposable email addresses are not allowed.')
+  // Signup
+  const signup = async (email, password, full_name, phone) => {
+    const allowedDomains = [
+      'gmail.com', 'yahoo.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'protonmail.com'
+    ]
+    const domain = email.split('@')[1]?.toLowerCase()
+    if (!allowedDomains.includes(domain)) {
+      throw new Error('Please use a valid email domain (e.g., Gmail, Yahoo, Outlook).')
     }
-  } catch (err) {
-    console.warn('⚠️ Email validation API failed, proceeding with domain-only check.')
-  }
 
-  // ✅ Proceed with Supabase signup if email passes checks
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    phone,
-    password,
-    options: {
-      data: { full_name } // stored in raw_user_meta_data
+    try {
+      const res = await fetch(`https://www.disify.com/api/email/${email}`)
+      const data = await res.json()
+      if (data.disposable) throw new Error('Disposable email not allowed.')
+    } catch {
+      console.warn('Disposable check skipped due to API issue.')
     }
-  })
 
-  if (error) throw error
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name, phone } }
+    })
 
-  user.value = data.user
-
-  // ✅ Wait for profile trigger to complete then fetch profile
-  if (data.user) {
-    setTimeout(() => fetchProfile(data.user.id), 1500)
+    if (error) throw error
+    user.value = data.user ?? null
+    if (data.user) setTimeout(() => fetchProfile(data.user.id), 1500)
+    return data.user
   }
 
-  return data.user
-}
-
-
-
+  // Logout
   const logout = async () => {
     await supabase.auth.signOut()
     user.value = null
     profile.value = null
   }
 
-  // reactive auth state listener
-  supabase.auth.onAuthStateChange(async (event, session) => {
+  // Session listener
+  supabase.auth.onAuthStateChange(async (_, session) => {
     user.value = session?.user ?? null
-    if (user.value) fetchProfile(user.value.id)  // background fetch
+    if (user.value) fetchProfile(user.value.id)
     else profile.value = null
   })
 
-  // fetch session on mount
+  // On mount
   onMounted(async () => {
     const s = await supabase.auth.getSession()
     user.value = s.data?.session?.user ?? null
@@ -108,4 +83,77 @@ export function useAuth() {
   })
 
   return { supabase, user, profile, loadingProfile, fetchProfile, login, signup, logout }
+}
+
+// ========== 3. Database Composable ==========
+export function useDatabase() {
+  const getAll = async (table) => {
+    const { data, error } = await supabase.from(table).select('*')
+    return { data, error }
+  }
+
+  const insert = async (table, values) => {
+    const { data, error } = await supabase.from(table).insert(values)
+    return { data, error }
+  }
+
+  const update = async (table, id, values) => {
+    const { data, error } = await supabase.from(table).update(values).eq('id', id)
+    return { data, error }
+  }
+
+  const remove = async (table, id) => {
+    const { data, error } = await supabase.from(table).delete().eq('id', id)
+    return { data, error }
+  }
+
+  return { getAll, insert, update, remove }
+}
+
+// ========== 4. Realtime Composable ==========
+export function useRealtime(tableName, callback) {
+  const channel = ref(null)
+
+  const startRealtime = () => {
+    if (!tableName || !callback) {
+      console.warn('useRealtime: tableName and callback are required.')
+      return
+    }
+
+    // Subscribe to realtime changes for the given table
+    channel.value = supabase
+      .channel(`realtime:${tableName}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: tableName },
+        (payload) => {
+          // payload contains event type (INSERT, UPDATE, DELETE)
+          callback(payload)
+        }
+      )
+      .subscribe()
+
+    console.log(`Realtime subscription started for table: ${tableName}`)
+  }
+
+  const stopRealtime = () => {
+    if (channel.value) {
+      supabase.removeChannel(channel.value)
+      console.log(`Realtime subscription stopped for table: ${tableName}`)
+    }
+  }
+
+  onMounted(startRealtime)
+  onUnmounted(stopRealtime)
+
+  return { startRealtime, stopRealtime }
+}
+
+// ========== 5. Combined Composable ==========
+export function useSupabase() {
+  return {
+    supabase,
+    ...useAuth(),
+    ...useDatabase(),
+  }
 }

@@ -63,17 +63,21 @@ const cartCount = ref(0)
 // 🔗 Links
 const navLinks = [
   { to: '/', title: 'Home' },
+  { to: '/explore', title: 'Scroll' },
   { to: '/shop', title: 'Shop' },
   { to: '/cart', title: 'Cart' },
   { to: '/orders', title: 'Orders' },
+  { to: '/Notifications', title: 'notifications' },
   { to: '/profile', title: 'Profile' }
 ]
 
 const quickAccess = [
   { to: '/', icon: 'bi bi-house-door-fill' },
+  { to: '/explore', icon: 'bi bi-lightning-fill' },
   { to: '/shop', icon: 'bi bi-grid-1x2-fill' },
   { to: '/cart', icon: 'bi bi-cart-fill' },
   { to: '/orders', icon: 'bi bi-bag-check-fill' },
+  { to: '/Notifications', icon: 'bi bi-bell-fill' },
   { to: '/profile', icon: 'bi bi-person-fill' }
 ]
 

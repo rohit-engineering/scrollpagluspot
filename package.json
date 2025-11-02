@@ -9,8 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@clerk/clerk-js": "^5.103.1",
+    "@clerk/vue": "^1.14.9",
     "@popperjs/core": "^2.11.8",
     "@supabase/supabase-js": "^2.76.1",
+    "axios": "^1.13.1",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
     "html2canvas": "^1.4.1",

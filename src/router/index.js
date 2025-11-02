@@ -7,6 +7,8 @@ import Orders from '../pages/Orders.vue'
 import Profile from '../pages/Profile.vue'
 import Login from '../pages/Login.vue'
 import Signup from '../pages/Signup.vue'
+import explore from '../pages/explore.vue'
+import Notifications from '../pages/Notifications.vue'
 import ProductDetails from '../pages/ProductDetails.vue'
 
 const routes = [
@@ -15,6 +17,8 @@ const routes = [
   { path: '/profile', component: Profile },
   { path: '/login', component: Login },
   { path: '/signup', component: Signup },
+  { path: '/explore', component: explore },
+  { path: '/Notifications', component: Notifications },
   { path: '/product/:id', component: ProductDetails },
   { path: '/cart', component: Cart, meta: { requiresAuth: true } },
   { path: '/orders', component: Orders, meta: { requiresAuth: true } },
