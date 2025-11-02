@@ -142,6 +142,48 @@ const orderPlaced = ref(false)
 const totalAmount = ref(0)
 const orderDetails = ref([])
 
+// ✅ Custom Validation Function
+const validateForm = () => {
+  const nameRegex = /^[a-zA-Z\s]{3,40}$/
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const phoneRegex = /^[6-9]\d{9}$/
+  const pincodeRegex = /^[1-9][0-9]{5}$/
+
+  if (!name.value || !nameRegex.test(name.value)) {
+    toast.error('Please enter a valid full name (only letters) 🙅‍♂️')
+    return false
+  }
+
+  if (!emailRegex.test(email.value)) {
+    toast.error('Enter a valid email address 📧')
+    return false
+  }
+
+  if (!phoneRegex.test(phone.value)) {
+    toast.error('Enter a valid 10-digit Indian phone number 📱')
+    return false
+  }
+
+  // Prevent fake phone like "9999999999" or "1234567890"
+  const fakeNumbers = ['1234567890', '9999999999', '8888888888', '0000000000']
+  if (fakeNumbers.includes(phone.value)) {
+    toast.error('Please enter a real phone number 🕵️‍♂️')
+    return false
+  }
+
+  if (!pincodeRegex.test(pincode.value)) {
+    toast.error('Enter a valid 6-digit Indian pincode 📮')
+    return false
+  }
+
+  if (!address.value || address.value.length < 10) {
+    toast.error('Please enter a full address (at least 10 characters) 🏠')
+    return false
+  }
+
+  return true
+}
+
 const placeOrder = async () => {
   const { data: userData } = await supabase.auth.getUser()
   const user = userData?.user
@@ -155,6 +197,9 @@ const placeOrder = async () => {
     toast.warning('Your cart is empty 🛍️')
     return
   }
+
+  // ✅ Check Validation
+  if (!validateForm()) return
 
   totalAmount.value = cart.value.reduce((sum, i) => sum + i.price * i.quantity, 0)
   orderDetails.value = cart.value.map(i => ({

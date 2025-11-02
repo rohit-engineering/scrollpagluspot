@@ -2,12 +2,312 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image" href="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEiQ9X0CWtcUN4ZJFNVIIMrrEHvDOrNDyQGurW_iAGu5rmwj8Rgc__fGwqWs_bOYHFO_BHCYV5G266GWDHY1hbqhnCQqXcSYbXsZeGsXkLPz2BpAjjOmWBMFO9MzOU2mrKk3hGzfTMqdlY-t5LRx5VL7Nyj3VFARfYQO-FoE2lQfJboDchnsEZukLJf9hZg/s320/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ScrollPaglu</title>
+    <script>
+(function () {
+  'use strict';
+
+  // === CONFIG ===
+  // If you want selection/copy to be blocked, set to true (can annoy users).
+  const BLOCK_SELECTION_AND_COPY = false;
+
+  // Action when devtools detected: 'overlay' | 'redirect' | 'logout' | 'none'
+  // 'overlay' will show a full-screen message; 'redirect' will navigate to URL below.
+  const ON_DETECT_ACTION = 'overlay';
+  const REDIRECT_URL = '/'; // change if you prefer redirect
+  const DETECTION_POLL_MS = 500; // frequency of devtools check
+
+  // Minimum dimension delta to consider devtools open (tweak if false positives)
+  const DEVTOOLS_DIM_DELTA = 160;
+
+  // === END CONFIG ===
+
+  // Utility: show overlay blocking interaction
+  const createOverlay = (() => {
+    let overlay = null;
+    return () => {
+      if (overlay) return overlay;
+      overlay = document.createElement('div');
+      overlay.id = 'security-overlay';
+      Object.assign(overlay.style, {
+        position: 'fixed',
+        inset: '0',
+        background: 'rgba(0,0,0,0.95)',
+        color: 'white',
+        display: 'flex',
+        'align-items': 'center',
+        'justify-content': 'center',
+        'z-index': 999999,
+        'flex-direction': 'column',
+        'text-align': 'center',
+        padding: '2rem',
+        'font-family': 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial'
+      });
+      overlay.innerHTML = `
+        <div style="max-width:720px;">
+          <h1 style="margin:0 0 0.5rem 0; font-size:1.6rem;">Security notice</h1>
+          <p style="margin:0 0 1rem 0; opacity:0.95;">
+            Developer tools are not permitted while using this application.
+            If you believe this is an error, please contact support.
+          </p>
+          <button id="security-overlay-close" style="padding:0.6rem 1rem; font-size:1rem; cursor:pointer;">
+            Exit
+          </button>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      const btn = overlay.querySelector('#security-overlay-close');
+      btn.addEventListener('click', () => {
+        // default action: redirect to home
+        try { window.location.href = REDIRECT_URL; } catch(e) { /* ignore */ }
+      });
+      return overlay;
+    };
+  })();
+
+  // Block context menu (right click) and optionally selection/copy
+  function installContextAndCopyHandlers() {
+    document.addEventListener('contextmenu', function (e) {
+      e.preventDefault();
+    }, { capture: true });
+
+    // Prevent common copy/select actions if configured
+    if (BLOCK_SELECTION_AND_COPY) {
+      document.addEventListener('selectstart', e => e.preventDefault(), { capture: true });
+      document.addEventListener('copy', e => e.preventDefault(), { capture: true });
+      document.addEventListener('cut', e => e.preventDefault(), { capture: true });
+      // CSS fallback
+      const style = document.createElement('style');
+      style.innerHTML = `* { -webkit-user-select: none !important; -moz-user-select: none !important; -ms-user-select: none !important; user-select: none !important; }`;
+      document.head.appendChild(style);
+    }
+  }
+
+  // Block many devtools keyboard combinations (works for casual users)
+  function installKeyBlocker() {
+    document.addEventListener('keydown', function (e) {
+      // Some platforms use metaKey (Mac cmd), others ctrlKey (Windows/Linux)
+      const ctrlOrCmd = e.ctrlKey || e.metaKey;
+      const shift = e.shiftKey;
+
+      // block F12
+      if (e.key === 'F12' || e.keyCode === 123) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerDetected('F12 blocked');
+        return;
+      }
+
+      // block Ctrl/Cmd+Shift+I / J / C  (DevTools)
+      if (ctrlOrCmd && shift && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerDetected('Devtools shortcut blocked');
+        return;
+      }
+
+      // block Ctrl/Cmd+U (view source)
+      if (ctrlOrCmd && (e.key === 'U' || e.key === 'u')) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerDetected('View-source shortcut blocked');
+        return;
+      }
+
+      // block Ctrl/Cmd+S (save page)
+      if (ctrlOrCmd && (e.key === 'S' || e.key === 's')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // block Ctrl/Cmd+Shift+K (Firefox console)
+      if (ctrlOrCmd && shift && (e.key === 'K' || e.key === 'k')) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerDetected('Firefox devtools shortcut blocked');
+        return;
+      }
+
+      // block Ctrl/Cmd+Shift+C (element inspector)
+      if (ctrlOrCmd && shift && (e.key === 'C' || e.key === 'c')) {
+        e.preventDefault();
+        e.stopPropagation();
+        triggerDetected('Inspector shortcut blocked');
+        return;
+      }
+    }, { capture: true });
+  }
+
+  // Simple DevTools detection by checking window dimension differences
+  function installDevtoolsDetector() {
+    let lastState = false;
+    function check() {
+      try {
+        const widthDiff = Math.abs(window.outerWidth - window.innerWidth);
+        const heightDiff = Math.abs(window.outerHeight - window.innerHeight);
+        const detected = (widthDiff > DEVTOOLS_DIM_DELTA) || (heightDiff > DEVTOOLS_DIM_DELTA);
+
+        if (detected !== lastState) {
+          lastState = detected;
+          if (detected) {
+            triggerDetected(`DevTools detected (deltaW=${widthDiff}, deltaH=${heightDiff})`);
+          } else {
+            // optionally do something when devtools closed
+            // console.log('devtools closed'); // avoid console logs in prod
+          }
+        }
+      } catch (err) {
+        // ignore errors from unusual browsers
+      }
+    }
+    setInterval(check, DETECTION_POLL_MS);
+  }
+
+  // Action to take when detection occurs
+  function triggerDetected(reason) {
+    try {
+      // send a simple beacon to server to record (non-blocking)
+      if (navigator.sendBeacon) {
+        const payload = JSON.stringify({ event: 'devtools_detected', reason: reason, url: location.href, ts: Date.now() });
+        navigator.sendBeacon('/_security/log', payload); // server endpoint optional
+      }
+    } catch (e) { /* ignore */ }
+
+    if (ON_DETECT_ACTION === 'overlay') {
+      createOverlay();
+    } else if (ON_DETECT_ACTION === 'redirect') {
+      try { window.location.href = REDIRECT_URL; } catch (e) { /* ignore */ }
+    } else if (ON_DETECT_ACTION === 'logout') {
+      // attempt to call your logout routine if you have one
+      try {
+        // if you have an API logout route, call it (example):
+        fetch('/api/logout', { method: 'POST', credentials: 'same-origin' }).finally(() => {
+          window.location.href = REDIRECT_URL;
+        });
+      } catch (e) {
+        try { window.location.href = REDIRECT_URL; } catch (e2) {}
+      }
+    } else {
+      // none: do nothing
+    }
+  }
+
+  // Prevent console usage by overwriting console methods (cosmetic; can be bypassed)
+  function neuterConsole() {
+    try {
+      // Save original if you want to restore in dev builds. In production consider removing.
+      const noop = function () {};
+      // Only overwrite in production; comment out if you rely on console for debug.
+      // Replace console methods with no-ops
+      if (window.console) {
+        console.log = noop;
+        console.error = noop;
+        console.info = noop;
+        console.debug = noop;
+        console.warn = noop;
+        console.table = noop;
+        console.trace = noop;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  // Initialize everything
+  function init() {
+    installContextAndCopyHandlers();
+    installKeyBlocker();
+    installDevtoolsDetector();
+    neuterConsole();
+    // Optionally remove dev tools shortcuts in inline HTML (meta) — done above
+  }
+
+  // Run
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+
+<title>ScrollpagluSpot – Cute, Aesthetic & Trendy Online Shopping for Gen Z</title>
+<meta name="description" content="ScrollpagluSpot is a stylish e-commerce platform for Gen Z. Explore cute stationery, aesthetic gifts, trending scrunchies, and lifestyle items for girls & boys — fun, cozy, and 100% vibe!" />
+<meta name="keywords" content="genz shopping, cute stationery, aesthetic gifts, trendy scrunchies, online store for teens,aesthetic ,cute, soft, trending clothers , aesthetic accessories, lifestyle products, girlystuff ,handmade items, scrollhere ,entertainment, socialmedia ,instagram, facebook, youtube, reddit ,tumbler,X ,whatsapp,flipkart,myntra,amazon,meeshoshopify,instamojo,blinkit,games,memes,images,photos,posts,rediment,garments,college,students,teenagers,news,shop,ecommerce,genz fashion, gifts for girls, gifts for boys, rohit startup, ScrollpagluSpot" />
+<meta name="author" content="ScrollpagluSpot" />
+<link rel="canonical" href="https://scrollpagluspot.vercel.app/" />
+
+<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+<meta name="googlebot" content="index, follow" />
+<link rel="manifest" href="/manifest.json" />
+
+<meta property="og:title" content="ScrollpagluSpot – Cute, Aesthetic & Trendy Online Shopping for Gen Z" />
+<meta property="og:description" content="The most aesthetic online shopping app for Gen Z. Cute stationery, trendy accessories, scrunchies & gifts — fun, cozy, and totally your vibe!" />
+<meta property="og:url" content="https://scrollpagluspot.vercel.app/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="ScrollpagluSpot" />
+<meta property="og:image" content="https://scrollpagluspot.vercel.app/preview.jpg" />
+<meta property="og:image:alt" content="ScrollpagluSpot aesthetic product preview" />
+
+<!-- Twitter (X) Card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="ScrollpagluSpot – Cute, Aesthetic & Trendy Online Shopping for Gen Z" />
+<meta name="twitter:description" content="ScrollpagluSpot: cute stationery, aesthetic gifts & trending scrunchies for Gen Z. A fun, comfortable and entertaining shopping vibe!" />
+<meta name="twitter:image" content="https://scrollpagluspot.vercel.app/preview.jpg" />
+<meta name="twitter:site" content="@ScrollpagluSpot" />
+
+
+<!-- PWA / App Tags -->
+<meta name="application-name" content="ScrollpagluSpot" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="ScrollpagluSpot" />
+<meta name="mobile-web-app-capable" content="yes" />
+
+<!-- Language & Regional Targeting -->
+<meta name="language" content="en" />
+<meta http-equiv="content-language" content="en" />
+
+<!-- Performance -->
+<meta http-equiv="Cache-Control" content="max-age=31536000, must-revalidate" />
+<meta name="referrer" content="no-referrer-when-downgrade" />
+
+<!-- Security Headers -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; object-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:;" />
+<meta http-equiv="X-Content-Type-Options" content="nosniff" />
+<meta http-equiv="X-Frame-Options" content="SAMEORIGIN" />
+<meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+
   </head>
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.js"></script>
   </body>
+
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Store",
+  "name": "ScrollpagluSpot",
+  "description": "A trendy e-commerce platform by Rohit for Gen Z shoppers. Explore cute, aesthetic, and fun items for girls and boys — stationery, scrunchies, gifts, and more!",
+  "url": "https://scrollpagluspot.vercel.app",
+  "image": "https://www.shopgenz.com/preview.jpg",
+  "founder": {
+    "@type": "Person",
+    "name": "Rohit"
+  },
+  "sameAs": [
+    "https://www.instagram.com/ScrollpagluSpot",
+    "https://www.twitter.com/scrollpagluspot"
+  ],
+  "openingHours": "Mo-Su 00:00-23:59",
+  "address": {
+    "@type": "PostalAddress",
+    "addressCountry": "IN"
+  }
+}
+</script>
+
 </html>
