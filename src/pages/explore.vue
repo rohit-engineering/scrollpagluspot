@@ -251,19 +251,221 @@ const loadAestheticImages = async (count = 5) => {
       loaded: false
     }
   })
+
+  /* 🌸 Pixabay API */
+  const PIXABAY_KEY = '53072388-5e7820b81347d15e1b50c46a5'
+  try {
+    if (Math.random() > 0.5) {
+      const q = photoThemes[Math.floor(Math.random() * photoThemes.length)]
+      const res = await fetch(
+        `https://pixabay.com/api/?key=${PIXABAY_KEY}&q=${encodeURIComponent(q)}&image_type=photo&per_page=${count}`
+      )
+      const data = await res.json()
+      const pixabayBatch = (data.hits || []).map((p, i) => ({
+        id: 'px_' + (aestheticFeed.value.length + i),
+        url: p.webformatURL,
+        caption: p.tags,
+        type: 'photo',
+        loaded: false
+      }))
+      batch.push(...pixabayBatch)
+    }
+  } catch (err) {
+    console.warn('Pixabay fetch failed:', err)
+  }
+
+  /* 🌸 Pexels API */
+  const PEXELS_KEY = '5yR8J2Sr4gOZkk8rSAceKrSQfJDOmp88d3FWbbwBc0xcy7RI7WZh62R1'
+  try {
+    if (Math.random() > 0.4) {
+      const q = photoThemes[Math.floor(Math.random() * photoThemes.length)]
+      const res = await fetch(
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent(q)}&per_page=${count}`,
+        { headers: { Authorization: PEXELS_KEY } }
+      )
+      const data = await res.json()
+      const pexelsBatch = (data.photos || []).map((p, i) => ({
+        id: 'pe_' + (aestheticFeed.value.length + i),
+        url: p.src.medium,
+        caption: p.photographer,
+        type: 'photo',
+        loaded: false
+      }))
+      batch.push(...pexelsBatch)
+    }
+  } catch (err) {
+    console.warn('Pexels fetch failed:', err)
+  }
+
+  /* 🖼️ Lorem Picsum (random placeholders) */
+  try {
+    if (Math.random() > 0.3) {
+      const loremBatch = Array.from({ length: Math.ceil(count / 2) }).map((_, i) => ({
+        id: 'lp_' + (aestheticFeed.value.length + i),
+        url: `https://picsum.photos/400/400?random=${Math.floor(Math.random() * 9999)}`,
+        caption: 'Lorem aesthetic placeholder',
+        type: 'photo',
+        loaded: false
+      }))
+      batch.push(...loremBatch)
+    }
+  } catch (err) {
+    console.warn('Lorem Picsum fetch failed:', err)
+  }
+
+  /* ✨ Tenor aesthetic GIFs */
+  const TENOR_KEY = 'LIVDSRZULELA'
+  try {
+    if (Math.random() > 0.6) {
+      const q = 'aesthetic vibes'
+      const res = await fetch(
+        `https://g.tenor.com/v1/search?q=${encodeURIComponent(q)}&key=${TENOR_KEY}&limit=${count}`
+      )
+      const data = await res.json()
+      const tenorBatch = (data.results || []).map((g, i) => ({
+        id: 'gif_' + (aestheticFeed.value.length + i),
+        url: g.media_formats?.tinygif?.url || g.media_formats?.gif?.url,
+        caption: g.title || 'GIF Vibe ✨',
+        type: 'photo',
+        loaded: false
+      }))
+      batch.push(...tenorBatch)
+    }
+  } catch (err) {
+    console.warn('Tenor fetch failed:', err)
+  }
+
   aestheticFeed.value.push(...batch)
 }
 
-/* Mixed loader: will load equal number of stickers & photos */
+// ✅ Put this inside an async function like loadMoreStickers() or loadAestheticImages()
+const loadFashionAndStickers = async (count = 10) => {
+  const batch = []
+  const sig = Math.random().toString(36).substring(2, 8)
+
+  /* 🌸 1️⃣ Unsplash Stickers */
+  const unsplashBatch = Array.from({ length: count }).map((_, i) => ({
+    id: 'us_' + (stickerFeed.value.length + i),
+    url: `https://source.unsplash.com/400x400/?aesthetic,sticker&sig=${sig}-${i}`,
+    caption: 'Aesthetic Sticker 🌸',
+    type: 'sticker',
+    loaded: false
+  }))
+  batch.push(...unsplashBatch)
+
+  /* 🌸 2️⃣ Waifu API */
+  try {
+    if (Math.random() > 0.5) {
+      const results = await Promise.all(
+        Array.from({ length: Math.ceil(count / 2) }).map(() =>
+          fetch('https://api.waifu.pics/sfw/waifu').then(r => r.json())
+        )
+      )
+      const waifuBatch = results.map((w, i) => ({
+        id: 'waifu_' + (stickerFeed.value.length + i),
+        url: w.url,
+        caption: 'Anime Aesthetic ✨',
+        type: 'sticker',
+        loaded: false
+      }))
+      batch.push(...waifuBatch)
+    }
+  } catch (err) {
+    console.warn('Waifu fetch failed:', err)
+  }
+
+  /* 👗 3️⃣ Unsplash Fashion */
+  try {
+    if (Math.random() > 0.4) {
+      const fashionQuery = ['fashion model', 'runway', 'fashion show', 'street style', 'female model']
+      const fq = fashionQuery[Math.floor(Math.random() * fashionQuery.length)]
+      const fashionBatch = Array.from({ length: Math.ceil(count / 2) }).map((_, i) => ({
+        id: 'uf_' + (stickerFeed.value.length + i),
+        url: `https://source.unsplash.com/400x400/?${encodeURIComponent(fq)}&sig=${sig}-f${i}`,
+        caption: fq,
+        type: 'sticker',
+        loaded: false
+      }))
+      batch.push(...fashionBatch)
+    }
+  } catch (err) {
+    console.warn('Unsplash fashion failed:', err)
+  }
+
+  /* 👠 4️⃣ Pexels Fashion */
+  try {
+    if (Math.random() > 0.5) {
+      const res = await fetch(
+        `https://api.pexels.com/v1/search?query=${encodeURIComponent('fashion model runway female')}&per_page=${count}`,
+        { headers: { Authorization: '5yR8J2Sr4gOZkk8rSAceKrSQfJDOmp88d3FWbbwBc0xcy7RI7WZh62R1' } }
+      )
+      const data = await res.json()
+      const pexelsFashion = (data.photos || []).map((p, i) => ({
+        id: 'pf_' + (stickerFeed.value.length + i),
+        url: p.src.medium,
+        caption: p.photographer || 'Fashion Model',
+        type: 'sticker',
+        loaded: false
+      }))
+      batch.push(...pexelsFashion)
+    }
+  } catch (err) {
+    console.warn('Pexels fashion failed:', err)
+  }
+
+  /* 💃 5️⃣ Pixabay Fashion */
+  try {
+    if (Math.random() > 0.5) {
+      const res = await fetch(
+        `https://pixabay.com/api/?key=53072388-5e7820b81347d15e1b50c46a5&q=${encodeURIComponent('fashion model woman runway')}&image_type=photo&per_page=${count}`
+      )
+      const data = await res.json()
+      const pixabayFashion = (data.hits || []).map((p, i) => ({
+        id: 'fx_' + (stickerFeed.value.length + i),
+        url: p.webformatURL,
+        caption: p.tags || 'Fashion Image',
+        type: 'sticker',
+        loaded: false
+      }))
+      batch.push(...pixabayFashion)
+    }
+  } catch (err) {
+    console.warn('Pixabay fashion failed:', err)
+  }
+
+  /* 🧸 6️⃣ DummyJSON Products */
+  try {
+    if (Math.random() > 0.4) {
+      const res = await fetch('https://dummyjson.com/products?limit=5')
+      const data = await res.json()
+      const dummyBatch = (data.products || []).map((p, i) => ({
+        id: 'dm_' + (stickerFeed.value.length + i),
+        url: p.thumbnail,
+        caption: p.title,
+        type: 'sticker',
+        loaded: false
+      }))
+      batch.push(...dummyBatch)
+    }
+  } catch (err) {
+    console.warn('DummyJSON fetch failed:', err)
+  }
+
+  // ✅ Push all fetched batches into feed
+  stickerFeed.value.push(...batch)
+  stickerPage.value++
+}
+
+/* 🔄 Mixed loader: ensures ~50/50 ratio */
 const loadMoreMixed = async () => {
   if (loadingStickers.value) return
   loadingStickers.value = true
-  // load both in parallel; same count ensures ~50/50 mix
   await Promise.all([loadMoreStickers(5), loadAestheticImages(5)])
   loadingStickers.value = false
   await nextTick()
   setupImageObserver()
 }
+
 
 /* image error fallback */
 const handleStickerError = (it) => {
@@ -396,14 +598,91 @@ const fetchGossip = async () => {
   }
 }
 
+const GIPHY_API_KEY = 'glcjmuobQ7FftTY7u8HPO7h1w6QM5NTQ' // get from developers.giphy.com
+const fetchGifs = async (limit = 5) => {
+  try {
+    const res = await fetch(
+      `https://api.giphy.com/v1/gifs/trending?api_key=${GIPHY_API_KEY}&limit=${limit}&rating=g`
+    )
+    const data = await res.json()
+    return data.data.map(g => ({
+      id: 'gif_' + g.id,
+      author: g.username || 'Giphy 🎞️',
+      text: g.title || 'Giphy vibe ✨',
+      image: g.images.original.webp || g.images.original.url,
+      tag: 'gif',
+      avatar: `https://i.pravatar.cc/40?img=${randInt(1,70)}`,
+      likes: randInt(200, 1000),
+      views: randInt(1000, 10000)
+    }))
+  } catch (e) {
+    console.warn('Giphy fetch error', e)
+    return []
+  }
+}
+
+/* ---- 🎵 Fetch Trending / New Music from iTunes ---- */
+const fetchMusic = async (limit = 8) => {
+  try {
+    const res = await fetch(`https://itunes.apple.com/search?term=popular&entity=song&limit=${limit}`);
+    const data = await res.json();
+    if (!data?.results) return [];
+
+    return data.results.map((t) => ({
+      id: 'music_' + t.trackId,
+      author: t.artistName + ' 🎤',
+      text: `Now Trending: “${t.trackName}” — ${t.collectionName}`,
+      image: t.artworkUrl100.replace('100x100bb', '300x300bb'),
+      tag: 'music',
+      avatar: `https://i.pravatar.cc/40?img=${randInt(1,70)}`,
+      likes: randInt(80, 1200),
+      views: randInt(1000, 10000),
+      preview: t.previewUrl // 30-second preview link
+    }));
+  } catch (e) {
+    console.warn('Music fetch error', e);
+    return [];
+  }
+};
+
+/* ---- 🎬 Fetch Movies from OMDb ---- */
+const API_KEY = "98b48412"; // 🔑 Replace this
+
+const fetchMovies = async (searchTerm = "2024", limit = 8) => {
+  try {
+    const res = await fetch(`https://www.omdbapi.com/?apikey=${API_KEY}&s=${encodeURIComponent(searchTerm)}&type=movie`);
+    const data = await res.json();
+
+    if (data.Response === "False") return [];
+
+    return data.Search.slice(0, limit).map((movie) => ({
+      id: 'movie_' + movie.imdbID,
+      title: movie.Title,
+      year: movie.Year,
+      type: movie.Type,
+      image: movie.Poster !== "N/A" ? movie.Poster : "https://via.placeholder.com/300x450?text=No+Poster",
+      description: `${movie.Title} (${movie.Year})`,
+      imdb: `https://www.imdb.com/title/${movie.imdbID}`,
+      tag: 'movies'
+    }));
+  } catch (err) {
+    console.error("Movie fetch error:", err);
+    return [];
+  }
+};
+
+
 /* ---- Combine sources into one mixed batch ---- */
 const buildTrendyBatch = async () => {
-  const [memes, jokes, quotes, gossip, anime] = await Promise.allSettled([
+  const [memes, jokes, quotes, gossip, anime, gifs, music, movies] = await Promise.allSettled([
     fetchMemes(3),
     fetchJokes(2),
     fetchQuotes(),
     fetchGossip(),
-    fetchAnimePosts()
+    fetchAnimePosts(),
+    fetchGifs(3),
+    fetchMusic(4), // 👈 new 
+    fetchMovies("new movie", 6) // 👈 Added this
   ])
   const resolved = []
   if (memes.status === 'fulfilled') resolved.push(...(memes.value || []))
@@ -411,6 +690,10 @@ const buildTrendyBatch = async () => {
   if (quotes.status === 'fulfilled') resolved.push(...(quotes.value || []))
   if (gossip.status === 'fulfilled') resolved.push(...(gossip.value || []))
   if (anime.status === 'fulfilled') resolved.push(...(anime.value || []))
+  if (gifs.status === 'fulfilled') resolved.push(...(gifs.value || []))
+if (music.status === 'fulfilled') resolved.push(...(music.value || []));
+
+
 
   const baseTrendy = [
     { author: 'Anu 💖', text: 'Bestie bolti “study kar”, me bolti “fashion pe focus kar” 😭', tag: 'funny' },
